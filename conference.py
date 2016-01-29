@@ -99,6 +99,17 @@ SESSION_GET_REQUEST = endpoints.ResourceContainer(
     websafeSessionKey=messages.StringField(1),
 )
 
+SESSION_GET_BY_TYPE_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,    
+    websafeConferenceKey=messages.StringField(1),
+        typeOfSession = messages.StringField(2)
+)
+
+SESSION_GET_BY_SPEAKER_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,    
+    websafeConferenceKey=messages.StringField(1),
+        speaker = messages.StringField(2)
+)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -648,6 +659,34 @@ class ConferenceApi(remote.Service):
                 'No conference found with key: %s' % request.websafeConferenceKey)
         sessions = Session.query(ancestor = conf.key).fetch()
         # return the result
+        return SessionForms( items = [self._copySessionToForm(session) for session in sessions] )
+
+    @endpoints.method(SESSION_GET_BY_TYPE_REQUEST, SessionForms,
+            path='sessionsbytype/{websafeConferenceKey}',
+            http_method='GET', name='getConferenceSessionsByType')
+    def getConferenceSessionsByType(self, request):
+        """Return requested conference sessions by typeOfSession (by websafeConferenceKey)."""
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+
+        sessions = Session.query(ancestor = conf.key)
+        if request.typeOfSession:
+            sessions = sessions.filter(Session.typeOfSession == request.typeOfSession)
+        sessions = sessions.fetch()
+        # return SessionForm per session
+        return SessionForms( items = [self._copySessionToForm(session) for session in sessions] )
+
+    @endpoints.method(SESSION_GET_BY_SPEAKER_REQUEST, SessionForms,
+            path='sessionsbyspeaker',
+            http_method='GET', name='getSessionsBySpeaker')
+    def getSessionsBySpeaker(self, request):
+        """Return requested conference sessions by speaker."""
+        sessions = Session.query()
+        if request.speaker:
+            sessions = sessions.filter(Session.speaker == request.speaker)
+        # return SessionForm objects
         return SessionForms( items = [self._copySessionToForm(session) for session in sessions] )
 
 
