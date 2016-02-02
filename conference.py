@@ -753,7 +753,8 @@ class ConferenceApi(remote.Service):
         prof.put()
         return BooleanMessage(data=retval)
 
-    @endpoints.method(message_types.VoidMessage, SessionForms, path='wishlist',
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+                      path='wishlist',
                       http_method='GET',
                       name='getSessionsInWishlist')
     def getSessionsInWishlist(self, request):
