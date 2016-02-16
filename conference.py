@@ -50,6 +50,7 @@ from utils import getUserId
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+MEMCACHE_FEATURED_SPEAKER_KEY = "FEATURED_SPEAKER"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -632,10 +633,9 @@ class ConferenceApi(remote.Service):
 
         # create Session
         new_key = Session(**data).put()
-        taskqueue.add(params={'conferenceKey': request.websafeConferenceKey,
-                      'speaker': data['speaker']},
-                      url='/tasks/get_featured_speaker')
-
+        taskqueue.add(params={'speaker': data['speaker'],
+                      'websafeConferenceKey': request.websafeConferenceKey},
+                      url='/tasks/set_featured_speaker')
         request.sessionKey = new_key.urlsafe()
         return self._copySessionToForm(request)
 
@@ -825,4 +825,29 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(session)
                             for session in sessions])
 
-api = endpoints.api_server([ConferenceApi]) # register API
+# - - - part 6 Add a Task - - - - - - - - - - -
+
+    @endpoints.method(message_types.VoidMessage, StringMessage,
+                      http_method='GET',
+                      name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Return Featured Speaker from memcache."""
+        return StringMessage(data=memcache.get(
+                             MEMCACHE_FEATURED_SPEAKER_KEY) or "")
+
+    @staticmethod
+    def _cacheFeaturedSpeaker(speaker, websafeConferenceKey):
+        """Assign speaker to memcache."""
+        conf = ndb.Key(urlsafe=websafeConferenceKey).get()
+        # check if conf exist
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % websafeConferenceKey)
+        sessions = Session.query(ancestor=conf.key)
+        sessions = sessions.filter(Session.speaker == speaker)
+        # if session exist then assign speaker to memcache
+        if sessions:
+            memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, speaker)
+        return speaker
+
+api = endpoints.api_server([ConferenceApi])  # register API

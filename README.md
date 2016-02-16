@@ -83,6 +83,10 @@ following endpoint methods has been added
 		Return requested conference sessions by duration.
 		path https://url/sessionsbyduration
 
-- Answer: The datastore support only one inequality per query, this query will return "BadRequestError", A way to bypass this limitation is to use query and merge the intersection of those too query.
+- Answer: The datastore support only one inequality per query, this query will return "BadRequestError", A way to bypass this limitation is to use 2 queries and merge the intersection of those too query.
 
+## 4 Add a Task
 
+- App Engine's Task Queue has been added
+
+- method getFeaturedSpeaker() methods has been added
