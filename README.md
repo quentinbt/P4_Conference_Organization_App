@@ -80,7 +80,8 @@ User can also add/delete session to their wishlist using the websafeSessionKey, 
 
 creation flow:
 
-you create an new conference.
+	you create an new conference.
+
 	└── using the websafeConferenceKey you can create a new session, this session will be assign to the previous conference.
 
 		├── speaker/session name is automatically put in memcache.
