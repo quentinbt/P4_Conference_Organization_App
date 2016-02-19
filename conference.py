@@ -53,6 +53,7 @@ MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
 MEMCACHE_FEATURED_SPEAKER_KEY = "FEATURED_SPEAKER"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
+SPEAKER_TPL = ('Speaker: %s is going to speak for sessions:')
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 DEFAULTS = {
@@ -624,8 +625,12 @@ class ConferenceApi(remote.Service):
             data['date'] = datetime.strptime(data['date'][:10],
                                              "%Y-%m-%d").date()
 
-        # generate Conference Key based on conference ID and Session
-        # ID based on Conference key get Session key from ID
+        # convert from strings to Time objects
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime']
+                                                  [:5], "%H:%M").time()
+
+        # generate Conference Key based on parent/child relationship
         c_key = conf.key
         s_id = Session.allocate_ids(size=1, parent=c_key)[0]
         s_key = ndb.Key(Session, s_id, parent=c_key)
@@ -637,7 +642,7 @@ class ConferenceApi(remote.Service):
                       'websafeConferenceKey': request.websafeConferenceKey},
                       url='/tasks/set_featured_speaker')
         request.sessionKey = new_key.urlsafe()
-        return self._copySessionToForm(request)
+        return self._copySessionToForm(s_key.get())
 
     def _copySessionToForm(self, session):
         """Copy relevant fields from Session to SessionForm."""
@@ -646,10 +651,8 @@ class ConferenceApi(remote.Service):
         for field in sf.all_fields():
             if hasattr(session, field.name):
                 # convert Date to date string; just copy others
-                if field.name in ['date', 'startTime']:
+                if field.name in ['date']:
                     setattr(sf, field.name, str(getattr(session, field.name)))
-                else:
-                    setattr(sf, field.name, getattr(session, field.name))
         if type(session) is Session:
             setattr(sf, 'sessionKey', str(session.key.urlsafe()))
         else:
@@ -686,7 +689,7 @@ class ConferenceApi(remote.Service):
                             for session in sessions])
 
     @endpoints.method(SESSION_GET_BY_TYPE_REQUEST, SessionForms,
-                      path='sessionsbytype/{websafeConferenceKey}',
+                      path='sessions/{websafeConferenceKey}/type',
                       http_method='GET',
                       name='getConferenceSessionsByType')
     def getConferenceSessionsByType(self, request):
@@ -705,7 +708,7 @@ class ConferenceApi(remote.Service):
                             for session in sessions])
 
     @endpoints.method(SESSION_GET_BY_SPEAKER_REQUEST, SessionForms,
-                      path='sessionsbyspeaker',
+                      path='sessions/speaker',
                       http_method='GET',
                       name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
@@ -770,7 +773,7 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(ndb.Key(urlsafe=session).get()) for session in sessions])  # noqa
 
     @endpoints.method(SESSION_DEL_REQUEST, BooleanMessage,
-                      path='deletefromwishlist',
+                      path='wishlist',
                       http_method='DELETE',
                       name='deleteSessionInWishlist')
     def deleteSessionFromWishlist(self, request):
@@ -791,7 +794,7 @@ class ConferenceApi(remote.Service):
 # - - - part 5 Additional queries - - - - - - -
 
     @endpoints.method(SESSION_GET_BY_HIGHLIGHTS_REQUEST, SessionForms,
-                      path='sessionsbyhighlights',
+                      path='sessions/highlights',
                       http_method='GET',
                       name='getSessionsByHighlights')
     def getSessionsByHighlights(self, request):
@@ -806,7 +809,7 @@ class ConferenceApi(remote.Service):
                             for session in sessions])
 
     @endpoints.method(SESSION_GET_BY_DURATION_REQUEST, SessionForms,
-                      path='sessionsbyduration',
+                      path='sessions/duration',
                       http_method='GET',
                       name='getSessionsByDuration')
     def getSessionsByDuration(self, request):
@@ -847,7 +850,10 @@ class ConferenceApi(remote.Service):
         sessions = sessions.filter(Session.speaker == speaker)
         # if session exist then assign speaker to memcache
         if sessions:
-            memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, speaker)
-        return speaker
+            featuredSpeaker = SPEAKER_TPL % speaker
+            for session in sessions:
+                featuredSpeaker += ' ' + session.name
+            memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, featuredSpeaker)
+        return featuredSpeaker
 
 api = endpoints.api_server([ConferenceApi])  # register API

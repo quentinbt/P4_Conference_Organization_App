@@ -39,37 +39,66 @@ App Engine application for the Udacity training course.
 
 following endpoint methods has been added
 - getConferenceSessions:
-	Return sessions.
+	Return list of sessions from the websafeConferenceKey.
 	path https://url/sessions/{websafeConferenceKey}
 
 - getConferenceSessionsByType:
-	Return requested conference sessions by typeOfSession.
-	path https://url/sessionsbytype/{websafeConferenceKey}
+	Return conference sessions filtered by typeOfSession.
+	path https://url/sessions/{websafeConferenceKey}/type
 
 - getSessionsBySpeaker:
-	Return requested conference sessions by speaker.
-	path https://url/sessionsbyspeaker
+	Return conference sessions filtered by speaker.
+	path https://url/sessions/speaker
 
 - createSession:
-	Create new session.
+	Create new session using _createSessionObject().
 	path https://url/session
 
-Session class and SessionForm has been define
+- _createSessionObject()
+	this function will check the input and change if needed (for exemple it will transform a string in date) and then create the new session.
+
+Session class and SessionForm has been define like so:
+
+    name = ndb.StringProperty(required=True)
+    highlights = ndb.StringProperty()
+    duration = ndb.IntegerProperty()
+    typeOfSession = ndb.StringProperty()
+    date = ndb.DateProperty()
+    startTime = ndb.TimeProperty()
+    speaker = ndb.StringProperty()
+
+Session properties is implemented in the same way than Conference is. This allow to maintain proper formatting inside the API. I decided than everything will be StringProperty except for:
+ - duration: in this case working with integer is more easier than string
+ - date: is a DateProperty for the same reason than duration
+ - startTime: is a TimeProperty because it allow startTime to be measured in 24 hour notation.
+
+
+Session entity is as a child of the Conference entity and speaker is a String in the Session entity. When you create a new session the task set_featured_speaker will copy and put the speaker and the session name in the memcache.
+
+User can also add/delete session to their wishlist using the websafeSessionKey, this key is just added to the user profile, this is implemented like so:
+	sessionKeysWishList = ndb.StringProperty(repeated=True)
+
+creation flow:
+
+you create an new conference.
+	└── using the websafeConferenceKey you can create a new session, this session will be assign to the previous conference.
+		├── speaker/session name is automatically put in memcache.
+		└── using the websafeSessionKey you can add/delete a session from you session wishlist.
 
 ## 2 Add Sessions to User Wishlist
 
 following endpoint methods has been added
 - addSessionToWishlist:
-	Adds a session to a user's list of sessions.
+	Add a session to the user's wishlist using websafeSessionKey.
 	path https://url/wishlist/{websafeSessionKey}
 
 - getSessionsInWishlist:
-	Get user's wishlist.
+	Get session in user's wishlist.
 	path https://url/wishlist
 
 - deleteSessionInWishlist:
-	Delete Session from user's wishlist.
-	path https://url/deletefromwishlist
+	Delete Session from user's wishlist using websafeSessionKey.
+	path https://url/wishlist
 
 ## 3 Work on indexes and queries
 - indexes has been created
@@ -77,13 +106,14 @@ following endpoint methods has been added
 - 2 queries has been added
 	- getSessionsByHighlights:
 		Return requested conference sessions by highlight.
-		path https://url/sessionsbyhighlights
+		path https://url/sessions/highlights
 
 	- getSessionsByDuration:
 		Return requested conference sessions by duration.
-		path https://url/sessionsbyduration
+		path https://url/sessions/duration
 
-- Answer: The datastore support only one inequality per query, this query will return "BadRequestError", A way to bypass this limitation is to use 2 queries and merge the intersection of those too query.
+- Answer: The datastore doesn't support multiple fields, this query will return "BadRequestError", A way to bypass this limitation is to use 2 differents queries, the first one will filter by startTime (in this case before 7pm), the second one will filter by typeOfSession (in this case non-workshop) and then we will look for the intersetion of these queries and output this intersetion.
+
 
 ## 4 Add a Task
 
