@@ -125,7 +125,7 @@ SESSION_GET_BY_HIGHLIGHTS_REQUEST = endpoints.ResourceContainer(
 
 SESSION_GET_BY_DURATION_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,    
-    duration = messages.StringField(1),
+    duration = messages.IntegerField(1, required=True),
 )
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -653,10 +653,10 @@ class ConferenceApi(remote.Service):
                 # convert Date to date string; just copy others
                 if field.name in ['date']:
                     setattr(sf, field.name, str(getattr(session, field.name)))
+                else:
+                    setattr(sf, field.name, getattr(session, field.name))
         if type(session) is Session:
             setattr(sf, 'sessionKey', str(session.key.urlsafe()))
-        else:
-            setattr(sf, 'sessionKey', str(session.sessionKey))
         sf.check_initialized()
         return sf
 
@@ -849,11 +849,13 @@ class ConferenceApi(remote.Service):
         sessions = Session.query(ancestor=conf.key)
         sessions = sessions.filter(Session.speaker == speaker)
         # if session exist then assign speaker to memcache
-        if sessions:
+        if sessions.count() > 1:
             featuredSpeaker = SPEAKER_TPL % speaker
             for session in sessions:
                 featuredSpeaker += ' ' + session.name
             memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, featuredSpeaker)
+        else:
+            featuredSpeaker = ''
         return featuredSpeaker
 
 api = endpoints.api_server([ConferenceApi])  # register API
